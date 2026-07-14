@@ -1,0 +1,229 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  
+  --color-brand-primary: #0d9488;
+  --color-brand-primary-hover: #0f766e;
+  --color-brand-light: #f0fdfa;
+  
+  --color-bg-base: #f8fafc;
+  
+  --color-text-main: #1e293b;
+  --color-text-muted: #64748b;
+}
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background-color: var(--color-bg-base);
+  font-family: var(--font-sans);
+  color: var(--color-text-main);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbars for a clean premium feel */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Hide horizontal scrollbar utility */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ── Global overflow containment ──────────────────────────────
+   Prevent KaTeX equations, long code blocks, wide tables, and
+   injected SVGs from ever causing horizontal page scroll.
+   Each element is clipped to its parent container.
+   ─────────────────────────────────────────────────────────── */
+
+/* KaTeX display-mode equations: scroll within the bubble only */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+}
+
+/* All KaTeX output nodes */
+.katex, .katex-html {
+  max-width: 100%;
+}
+
+/* Prose images and SVGs always fit their container */
+.prose img,
+.prose svg {
+  max-width: 100% !important;
+  height: auto !important;
+}
+
+/* Code blocks scroll horizontally inside their own box */
+.prose pre {
+  overflow-x: auto;
+  white-space: pre;
+  max-width: 100%;
+}
+
+/* Tables fit container */
+.prose table {
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+/* ── Global Dark Mode Styling Override ─────────────────────── */
+.dark {
+  --color-bg-base: #0f172a;
+  --color-text-main: #f8fafc;
+  --color-text-muted: #94a3b8;
+  --color-brand-light: rgba(13, 148, 136, 0.15); /* beautiful teal tint */
+  --color-brand-primary: #2dd4bf; /* vibrant teal-400 for dark mode */
+}
+
+/* Base components background & text */
+.dark body, 
+.dark #root,
+.dark main {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+}
+
+/* Page containers & wrappers (including hex bg helpers) */
+.dark .bg-slate-50,
+.dark [class*="bg-slate-50"],
+.dark [class*="bg-[#f8fafc]"] {
+  background-color: #0f172a !important;
+}
+
+/* Translucent containers (messages feed bg) */
+.dark .bg-slate-50\/50,
+.dark [class*="bg-slate-50/50"] {
+  background-color: transparent !important;
+}
+
+/* Cards, Sidebar, modals and containers */
+.dark aside,
+.dark .bg-white,
+.dark [class*="bg-white"],
+.dark [class*="bg-[#fcfcff]"],
+.dark .bg-slate-100,
+.dark [class*="bg-slate-100"] {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #f8fafc !important;
+}
+
+/* Interactive inputs, select dropdowns & textareas */
+.dark select,
+.dark input,
+.dark textarea {
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+  color: #f8fafc !important;
+}
+
+/* Progress bar background container */
+.dark .bg-slate-200,
+.dark [class*="bg-[#f1f5f9]"],
+.dark [class*="bg-slate-200"] {
+  background-color: #334155 !important;
+}
+
+/* NCERT pill badges background */
+.dark .bg-slate-100,
+.dark [class*="bg-[#e2e8f0]"],
+.dark [class*="bg-slate-100"] {
+  background-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+
+/* Class selection modal cards and list buttons */
+.dark .bg-slate-50,
+.dark [class*="bg-[#f0fdfa]"] {
+  background-color: rgba(13, 148, 136, 0.15) !important;
+  color: #2dd4bf !important;
+}
+
+.dark input:disabled,
+.dark select:disabled {
+  background-color: #1e293b !important;
+  color: #475569 !important;
+  border-color: #334155 !important;
+}
+
+/* Title text colors */
+.dark .text-slate-900,
+.dark [class*="text-slate-900"],
+.dark .text-slate-800,
+.dark [class*="text-slate-800"],
+.dark .text-slate-700,
+.dark [class*="text-slate-700"],
+.dark .text-slate-600,
+.dark [class*="text-slate-600"] {
+  color: #f1f5f9 !important;
+}
+
+/* Subtitles, secondary text colors */
+.dark .text-slate-500,
+.dark [class*="text-slate-500"],
+.dark .text-slate-400,
+.dark [class*="text-slate-400"] {
+  color: #94a3b8 !important;
+}
+
+/* Brand color text highlights */
+.dark [class*="text-[#0d9488]"],
+.dark .text-brand-primary {
+  color: #2dd4bf !important;
+}
+
+/* Brand active dark text highlights (active session title in sidebar) */
+.dark [class*="text-[#1e1b4b]"] {
+  color: #f8fafc !important;
+}
+
+/* Borders overrides */
+.dark .border-slate-100,
+.dark .border-slate-200,
+.dark [class*="border-slate-"],
+.dark [class*="border-[#e2e8f0]"],
+.dark [class*="border-[#0d9488]/"] {
+  border-color: #334155 !important;
+}
+
+/* Hover background effects */
+.dark .hover\:bg-slate-50:hover,
+.dark [class*="hover:bg-slate-50"]:hover {
+  background-color: #0f172a !important;
+}
+
+.dark [class*="hover:bg-[#f0fdfa]"]:hover {
+  background-color: rgba(13, 148, 136, 0.25) !important;
+}
+
+/* Premium dark shadows */
+.dark .shadow-sm,
+.dark .shadow-md,
+.dark .shadow-lg,
+.dark .shadow-xl {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.4) !important;
+}
+
