@@ -288,16 +288,26 @@ export const ChatWorkspace = () => {
   }, []);
 
   // Fetch session message logs when URL session changes
-  const fetchActiveSessionDetails = async (showLoading = false) => {
-    if (!activeSessionId) {
+  const fetchActiveSessionDetails = async (targetSessionId = null, showLoading = false) => {
+    let resolvedSessionId = activeSessionId;
+    let resolvedShowLoading = showLoading;
+
+    // Handle case where fetchActiveSessionDetails(true) or fetchActiveSessionDetails(false) is called
+    if (typeof targetSessionId === 'boolean') {
+      resolvedShowLoading = targetSessionId;
+    } else if (targetSessionId) {
+      resolvedSessionId = targetSessionId;
+    }
+
+    if (!resolvedSessionId) {
       setActiveSession(null);
       setMessages([]);
       return;
     }
     
-    if (showLoading) setLoadingChat(true);
+    if (resolvedShowLoading) setLoadingChat(true);
     try {
-      const res = await apiClient.get(`/api/chat/session/${activeSessionId}`);
+      const res = await apiClient.get(`/api/chat/session/${resolvedSessionId}`);
       setActiveSession(res.data);
       
       const chatsList = res.data.chats || [];
@@ -322,7 +332,7 @@ export const ChatWorkspace = () => {
     } catch (err) {
       console.error('Error loading session details:', err);
     } finally {
-      if (showLoading) setLoadingChat(false);
+      if (resolvedShowLoading) setLoadingChat(false);
     }
   };
 
@@ -473,7 +483,7 @@ export const ChatWorkspace = () => {
           // Reload sessions to update preview
           fetchSessions();
           // Reload active session details to update header title
-          fetchActiveSessionDetails(false);
+          fetchActiveSessionDetails(sessionId, false);
         }
       }, 35);
       
