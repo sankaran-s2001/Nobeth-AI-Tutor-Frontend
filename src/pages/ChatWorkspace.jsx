@@ -26,7 +26,9 @@ import {
   GraduationCap,
   ChevronDown,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  Volume2,
+  Square
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -270,6 +272,185 @@ export const ChatWorkspace = () => {
       }
       return updated;
     });
+  };
+  
+  // Audio STT & TTS states & refs
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [activeSpeakingMsgId, setActiveSpeakingMsgId] = useState(null);
+
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const streamRef = useRef(null);
+  const audioRef = useRef(null);
+
+  // Cleanup audio recorders and speech on unmount
+  useEffect(() => {
+    return () => {
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      if (streamRef.current) {
+        try {
+          streamRef.current.getTracks().forEach(track => track.stop());
+        } catch (e) {}
+      }
+    };
+  }, []);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      
+      const options = { mimeType: 'audio/webm' };
+      let recorder;
+      try {
+        recorder = new MediaRecorder(stream, options);
+      } catch (e) {
+        recorder = new MediaRecorder(stream);
+      }
+
+      mediaRecorderRef.current = recorder;
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        await handleTranscribe(audioBlob);
+      };
+
+      recorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error('Failed to start audio recording:', err);
+      alert('Could not access microphone. Please check permissions.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    if (streamRef.current) {
+      try {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      } catch (e) {}
+      streamRef.current = null;
+    }
+    setIsRecording(false);
+  };
+
+  const handleTranscribe = async (audioBlob) => {
+    setIsTranscribing(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', audioBlob, 'audio.webm');
+
+      const response = await apiClient.post('/api/audio/transcribe', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      if (response.data && response.data.text) {
+        setInputQuery(response.data.text);
+      }
+    } catch (err) {
+      console.error('Transcription failed:', err);
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
+
+  const handleMicClick = () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  };
+
+  const stopSpeaking = () => {
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    setActiveSpeakingMsgId(null);
+  };
+
+  const handleToggleSpeak = async (msg) => {
+    if (activeSpeakingMsgId === msg.id) {
+      stopSpeaking();
+      return;
+    }
+
+    stopSpeaking();
+
+    const cleanText = msg.text
+      .replace(/<think>[\s\S]*?<\/think>/g, '')
+      .replace(/[*#_`]/g, '')
+      .trim();
+
+    if (!cleanText) return;
+
+    setActiveSpeakingMsgId(msg.id);
+
+    if (window.speechSynthesis) {
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      
+      utterance.onend = () => {
+        setActiveSpeakingMsgId(null);
+      };
+      
+      utterance.onerror = async (e) => {
+        console.warn('Web Speech API error, falling back to backend TTS:', e);
+        await playTTSFallback(cleanText, msg.id);
+      };
+
+      window.speechSynthesis.speak(utterance);
+    } else {
+      await playTTSFallback(cleanText, msg.id);
+    }
+  };
+
+  const playTTSFallback = async (text, msgId) => {
+    try {
+      const response = await apiClient.get('/api/audio/speak', {
+        params: { text },
+        responseType: 'blob'
+      });
+      
+      const audioUrl = URL.createObjectURL(response.data);
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+      
+      audio.onended = () => {
+        setActiveSpeakingMsgId(null);
+        URL.revokeObjectURL(audioUrl);
+      };
+
+      audio.onerror = (e) => {
+        console.error('HTML5 Audio playback error:', e);
+        setActiveSpeakingMsgId(null);
+      };
+
+      await audio.play();
+    } catch (err) {
+      console.error('Failed to generate or play backend TTS:', err);
+      setActiveSpeakingMsgId(null);
+    }
   };
   
   // Delete / archive verification dialog state
@@ -972,9 +1153,23 @@ export const ChatWorkspace = () => {
                       {/* Bubble Bottom Meta actions (Tutor Only) */}
                       {!isUser && (
                         <div className="flex items-center justify-between px-2 text-[10px] font-extrabold text-slate-400 select-none">
-                          <span>
-                            {msg.timestamp ? formatTimeOnly(msg.timestamp) : ''}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span>
+                              {msg.timestamp ? formatTimeOnly(msg.timestamp) : ''}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleSpeak(msg)}
+                              className="p-1 rounded hover:bg-slate-100 cursor-pointer transition-all duration-200 hover:scale-115 text-slate-400 hover:text-slate-600 flex items-center justify-center"
+                              title={activeSpeakingMsgId === msg.id ? "Stop Reading" : "Read Response"}
+                            >
+                              {activeSpeakingMsgId === msg.id ? (
+                                <Square className="w-3 h-3 fill-slate-500 text-slate-500" />
+                              ) : (
+                                <Volume2 className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          </div>
                           
                           <div className="flex items-center gap-2">
                             <button 
@@ -1085,17 +1280,38 @@ export const ChatWorkspace = () => {
 
         {/* Floating Input Query Bar */}
         <div className="p-6 bg-slate-50/50 border-t border-slate-200/50 shrink-0 z-10 select-none">
-          <form onSubmit={handleSubmitQuery} className="max-w-4xl mx-auto flex flex-col bg-white border border-slate-200/80 shadow-[0_4px_30px_-5px_rgba(13,148,136,0.04)] rounded-[26px] p-3 relative">
+          <style>{`
+            @keyframes pulseRed {
+              0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+              70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+              100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+            }
+            .input-active-recording {
+              animation: pulseRed 1.5s infinite;
+            }
+          `}</style>
+          <form 
+            onSubmit={handleSubmitQuery} 
+            className={`max-w-4xl mx-auto flex flex-col bg-white border shadow-[0_4px_30px_-5px_rgba(13,148,136,0.04)] rounded-[26px] p-3 relative transition-all duration-200 ${
+              isRecording ? 'input-active-recording border-red-500' : 'border-slate-200/80'
+            }`}
+          >
             
             {/* TextInput Field */}
             <div className="flex items-center gap-2 px-2">
               <input
                 ref={queryInputRef}
                 type="text"
-                placeholder="Ask anything from your NCERT books..."
+                placeholder={
+                  isTranscribing
+                    ? "⏳ Transcribing audio..."
+                    : isRecording
+                      ? "🎙️ Listening... Click 🔴 to Stop & Transcribe"
+                      : "Ask anything from your NCERT books..."
+                }
                 value={inputQuery}
                 onChange={(e) => setInputQuery(e.target.value)}
-                disabled={sendingQuery}
+                disabled={sendingQuery || isTranscribing}
                 className="w-full py-2 bg-transparent border-none text-slate-700 placeholder-slate-400 text-sm font-bold outline-none"
               />
             </div>
@@ -1120,9 +1336,20 @@ export const ChatWorkspace = () => {
               <div className="flex items-center gap-3">
                 <button 
                   type="button"
-                  className="w-8 h-8 rounded-full hover:bg-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                  onClick={handleMicClick}
+                  disabled={isTranscribing}
+                  className={`w-8 h-8 rounded-full hover:bg-slate-50 flex items-center justify-center transition-all duration-200 hover:scale-115 active:scale-95 cursor-pointer ${
+                    isRecording ? 'bg-red-50 text-red-500' : 'text-slate-400 hover:text-slate-600'
+                  }`}
+                  title={isRecording ? 'Stop & Transcribe' : 'Record Audio'}
                 >
-                  <Mic className="w-4.5 h-4.5 stroke-[2.2]" />
+                  {isTranscribing ? (
+                    <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                  ) : isRecording ? (
+                    <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
+                  ) : (
+                    <Mic className="w-4.5 h-4.5 stroke-[2.2]" />
+                  )}
                 </button>
                 
                 <button
