@@ -231,6 +231,46 @@ export const ChatWorkspace = () => {
   
 
   const [activeMenuId, setActiveMenuId] = useState(null);
+  const [feedback, setFeedback] = useState({});
+  const [showHeaderMenuOpen, setShowHeaderMenuOpen] = useState(false);
+
+  // Sync feedback from localStorage when activeSessionId changes
+  useEffect(() => {
+    if (!activeSessionId) {
+      setFeedback({});
+      return;
+    }
+    try {
+      const saved = localStorage.getItem(`feedback-${activeSessionId}`);
+      if (saved) {
+        setFeedback(JSON.parse(saved));
+      } else {
+        setFeedback({});
+      }
+    } catch (e) {
+      console.error('Failed to parse feedback from localStorage:', e);
+      setFeedback({});
+    }
+  }, [activeSessionId]);
+
+  const handleFeedback = (msgId, type) => {
+    if (!activeSessionId) return;
+    setFeedback(prev => {
+      const current = prev[msgId];
+      const updated = { ...prev };
+      if (current === type) {
+        delete updated[msgId];
+      } else {
+        updated[msgId] = type;
+      }
+      try {
+        localStorage.setItem(`feedback-${activeSessionId}`, JSON.stringify(updated));
+      } catch (e) {
+        console.error('Failed to save feedback to localStorage:', e);
+      }
+      return updated;
+    });
+  };
   
   // Delete / archive verification dialog state
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -521,22 +561,30 @@ export const ChatWorkspace = () => {
   const handleTogglePin = async (e, id) => {
     e.stopPropagation();
     try {
+      // Optimistic update for instant visual feedback
+      if (activeSession && activeSession.sessionId === id) {
+        setActiveSession(prev => prev ? { ...prev, pinned: !prev.pinned } : null);
+      }
       await apiClient.post(`/api/chat/session/${id}/pin`);
       fetchSessions(searchQuery);
     } catch (err) {
       console.error('Error pinning session:', err);
+      // Rollback optimistic update on failure
+      if (activeSession && activeSession.sessionId === id) {
+        setActiveSession(prev => prev ? { ...prev, pinned: !prev.pinned } : null);
+      }
     }
   };
 
-  // Confirm and Archive (soft-delete) session
-  const triggerArchiveSession = (e, id) => {
+  // Confirm and Delete (soft-delete/archive) session
+  const triggerDeleteSession = (e, id) => {
     e.stopPropagation();
     setSessionToDelete(id);
     setShowDeleteConfirm(true);
     setActiveMenuId(null);
   };
 
-  const handleConfirmArchive = async () => {
+  const handleConfirmDelete = async () => {
     if (!sessionToDelete) return;
     setActionLoading(true);
     try {
@@ -548,7 +596,7 @@ export const ChatWorkspace = () => {
         setSearchParams({});
       }
     } catch (err) {
-      console.error('Failed to archive session:', err);
+      console.error('Failed to delete session:', err);
     } finally {
       setActionLoading(false);
     }
@@ -686,11 +734,11 @@ export const ChatWorkspace = () => {
                         {session.pinned ? 'Unpin Chat' : 'Pin Chat'}
                       </button>
                       <button
-                        onClick={(e) => triggerArchiveSession(e, session.sessionId)}
+                        onClick={(e) => triggerDeleteSession(e, session.sessionId)}
                         className="w-full text-left px-3 py-2 hover:bg-red-50 text-red-600 flex items-center gap-2 cursor-pointer"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
-                        Archive Chat
+                        Delete Chat
                       </button>
                     </motion.div>
                   </>
@@ -820,9 +868,51 @@ export const ChatWorkspace = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            <button className="w-8 h-8 rounded-lg hover:bg-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors duration-150 cursor-pointer">
-              <MoreVertical className="w-4.5 h-4.5 stroke-[2.2]" />
-            </button>
+            {activeSession && (
+              <div className="relative">
+                <button 
+                  onClick={() => setShowHeaderMenuOpen(!showHeaderMenuOpen)}
+                  className="w-8 h-8 rounded-lg hover:bg-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors duration-150 cursor-pointer"
+                >
+                  <MoreVertical className="w-4.5 h-4.5 stroke-[2.2]" />
+                </button>
+
+                <AnimatePresence>
+                  {showHeaderMenuOpen && (
+                    <>
+                      <div className="fixed inset-0 z-25" onClick={() => setShowHeaderMenuOpen(false)} />
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95, y: -5 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: -5 }}
+                        className="absolute right-0 mt-1 w-36 bg-white border border-slate-200/60 rounded-xl shadow-lg py-1 z-30 text-[11px] font-bold text-slate-600"
+                      >
+                        <button
+                          onClick={(e) => {
+                            setShowHeaderMenuOpen(false);
+                            handleTogglePin(e, activeSession.sessionId);
+                          }}
+                          className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                        >
+                          <Pin className="w-3.5 h-3.5 text-slate-400" />
+                          {activeSession.pinned ? 'Unpin Chat' : 'Pin Chat'}
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            setShowHeaderMenuOpen(false);
+                            triggerDeleteSession(e, activeSession.sessionId);
+                          }}
+                          className="w-full text-left px-3 py-2 hover:bg-red-50 text-red-600 flex items-center gap-2 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Delete Chat
+                        </button>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
           </div>
         </div>
 
@@ -887,11 +977,21 @@ export const ChatWorkspace = () => {
                           </span>
                           
                           <div className="flex items-center gap-2">
-                            <button className="hover:text-slate-600 transition-colors p-1 rounded hover:bg-slate-100 cursor-pointer">
-                              <ThumbsUp className="w-3.5 h-3.5" />
+                            <button 
+                              onClick={() => handleFeedback(msg.id, 'liked')}
+                              className={`p-1 rounded hover:bg-slate-100 cursor-pointer transition-colors duration-150 ${
+                                feedback[msg.id] === 'liked' ? 'text-[#0d9488] bg-[#f0fdfa]' : 'hover:text-slate-600 text-slate-400'
+                              }`}
+                            >
+                              <ThumbsUp className="w-3.5 h-3.5" fill={feedback[msg.id] === 'liked' ? 'currentColor' : 'none'} />
                             </button>
-                            <button className="hover:text-slate-600 transition-colors p-1 rounded hover:bg-slate-100 cursor-pointer">
-                              <ThumbsDown className="w-3.5 h-3.5" />
+                            <button 
+                              onClick={() => handleFeedback(msg.id, 'disliked')}
+                              className={`p-1 rounded hover:bg-slate-100 cursor-pointer transition-colors duration-150 ${
+                                feedback[msg.id] === 'disliked' ? 'text-rose-600 bg-rose-50' : 'hover:text-slate-600 text-slate-400'
+                              }`}
+                            >
+                              <ThumbsDown className="w-3.5 h-3.5" fill={feedback[msg.id] === 'disliked' ? 'currentColor' : 'none'} />
                             </button>
                             <button 
                               onClick={() => handleCopyClipboard(msg.text, msg.id)}
@@ -1066,9 +1166,9 @@ export const ChatWorkspace = () => {
               <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-500 mb-4">
                 <AlertTriangle className="w-6 h-6 stroke-[2.2]" />
               </div>
-              <h3 className="text-base font-extrabold text-slate-800">Archive Chat Session</h3>
+              <h3 className="text-base font-extrabold text-slate-800">Delete Chat Session</h3>
               <p className="text-xs text-slate-400 font-bold mt-2 leading-relaxed">
-                Are you sure you want to archive this chat? It will be removed from your recent list but can be recovered in view history.
+                Are you sure you want to delete this chat? This action cannot be undone.
               </p>
               
               <div className="flex gap-3 w-full mt-6">
@@ -1079,11 +1179,11 @@ export const ChatWorkspace = () => {
                   Cancel
                 </button>
                 <button
-                  onClick={handleConfirmArchive}
+                  onClick={handleConfirmDelete}
                   disabled={actionLoading}
                   className="flex-1 bg-red-600 hover:bg-red-700 text-white font-extrabold py-3 px-4 rounded-xl text-xs shadow-md shadow-red-600/10 transition-all disabled:bg-red-300 cursor-pointer"
                 >
-                  {actionLoading ? 'Archiving...' : 'Archive'}
+                  {actionLoading ? 'Deleting...' : 'Delete'}
                 </button>
               </div>
             </motion.div>

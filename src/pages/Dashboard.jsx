@@ -519,7 +519,7 @@ export const Dashboard = () => {
       </div>
 
       <p className="text-[10px] text-slate-400 text-center select-none font-bold mt-10">
-        © 2025 Nobeth AI Tutor. All rights reserved.
+        © 2026 Nobeth AI Tutor. All rights reserved.
       </p>
 
       {/* ──────────────────────────────────────────────────────── */}

@@ -165,7 +165,7 @@ export const Sidebar = () => {
 
         {/* Brand Copyright */}
         <p className="text-[10px] text-slate-400 text-center select-none font-medium">
-          © 2025 Nobeth AI Tutor
+          © 2026 Nobeth AI Tutor
         </p>
       </div>
 
