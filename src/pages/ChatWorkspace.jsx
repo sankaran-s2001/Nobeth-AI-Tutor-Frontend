@@ -324,11 +324,25 @@ export const ChatWorkspace = () => {
       };
 
       recorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        await handleTranscribe(audioBlob);
+        const mimeType = recorder.mimeType || 'audio/webm';
+        let extension = 'webm';
+        if (mimeType.includes('audio/mp4')) {
+          extension = 'mp4';
+        } else if (mimeType.includes('audio/ogg')) {
+          extension = 'ogg';
+        } else if (mimeType.includes('audio/wav')) {
+          extension = 'wav';
+        } else if (mimeType.includes('audio/mpeg')) {
+          extension = 'mp3';
+        } else if (mimeType.includes('audio/aac')) {
+          extension = 'aac';
+        }
+
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+        await handleTranscribe(audioBlob, extension);
       };
 
-      recorder.start();
+      recorder.start(100);
       setIsRecording(true);
     } catch (err) {
       console.error('Failed to start audio recording:', err);
@@ -349,11 +363,11 @@ export const ChatWorkspace = () => {
     setIsRecording(false);
   };
 
-  const handleTranscribe = async (audioBlob) => {
+  const handleTranscribe = async (audioBlob, extension = 'webm') => {
     setIsTranscribing(true);
     try {
       const formData = new FormData();
-      formData.append('file', audioBlob, 'audio.webm');
+      formData.append('file', audioBlob, `audio.${extension}`);
 
       const response = await apiClient.post('/api/audio/transcribe', formData, {
         headers: {
@@ -366,6 +380,8 @@ export const ChatWorkspace = () => {
       }
     } catch (err) {
       console.error('Transcription failed:', err);
+      const errMsg = err.response?.data?.error || err.message || 'Failed to transcribe audio.';
+      alert(`Transcription Error: ${errMsg}`);
     } finally {
       setIsTranscribing(false);
     }
